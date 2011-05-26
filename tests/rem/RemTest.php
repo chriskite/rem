@@ -8,7 +8,7 @@ class FakeObject extends Rem {
     }
 
     public function remId() {
-        "FakeObject." . $this->name;
+        return "FakeObject." . $this->name;
     }
 }
 
@@ -85,19 +85,5 @@ class RemTest extends PHPUnit_Framework_TestCase
         $another_fake = new FakeObject('bar');
         $this->assertEquals('bar', $fake->getObjectName($another_fake));
     }
-
-
-//    public function testCache() {
-//        $value = array(1, 'foo');
-//        Rem::remCache('Fake.42', 'get', array(), $value);
-//        $cached = Rem::remGetCached('Fake.42', 'get', array());
-//        $this->assertEquals($value, $cached);
-//    }
-//
-//    public function testRemSerializeArgs() {
-//        $test_args = array(1, new Fake(), array(2, new Fake()));
-//        $expected = serialize(array(1, new RemId('Fake.42'), array(2, new RemId('Fake.42'))));
-//        $this->assertEquals($expected, Rem::remSerializeArgs($test_args));
-//    }
 }
 ?>

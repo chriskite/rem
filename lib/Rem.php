@@ -51,14 +51,14 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecache() {
-        
+       //@TODO implement this 
     }
 
     /**
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
-
+       //@TODO implement this 
     }
 
     /**
@@ -80,7 +80,7 @@ class Rem {
         return $value;
     }
 
-    public static function remGetCached($id, $method, $args) {
+    private static function remGetCached($id, $method, $args) {
         $key = self::remGetKey($id, $method, $args);
         $value = self::$_redis->hget($key, 'val');
         if(null !== $value && "" !== $value) {
@@ -89,7 +89,7 @@ class Rem {
         return $value;
     }
 
-    public static function remCache($id, $method, $args, $value) {
+    private static function remCache($id, $method, $args, $value) {
         $key = self::remGetKey($id, $method, $args);
         self::$_redis->hset($key, 'args', serialize($args));
         self::$_redis->hset($key, 'val', serialize($value));
@@ -100,11 +100,15 @@ class Rem {
         return self::$_key_prefix . ":$id:$method:$hash";
     }
 
-    public static function remSerializeArgs($args) {
+    private static function remSerializeArgs($args) {
         $stringify = function(&$value, $index) {
             if(is_array($value)) {
                 $value = self::remSerializeArgs($value);
             } elseif(method_exists($value, 'remId')) {
+                $id = $value->remId();
+                if(null === $id || "" === $id) {
+                    throw new Exception("remId() must be non-null and non-empty.");
+                }
                 $value = new RemId($value->remId());
             }
         };
