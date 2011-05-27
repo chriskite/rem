@@ -67,39 +67,52 @@ class Rem {
         self::$_enabled = true;
     }
 
-    /**
-     * Recalculate all cached methods for this instance and
-     * overwrite the existing values in the cache.
-     */
-    public function remRecache() {
-        // TODO support recaching static methods
-        $id = $this->remId();
+    private static function remRecacheKey($key, $id, $binding) {
+        // get the arguments 
+        $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
+
+        foreach($args as &$arg) {
+            $class = new ReflectionClass($arg);
+            if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
+                $method = $class->getMethod('remHydrate');
+                $arg = $method->invokeArgs(null, array($arg->remId()));
+            }
+        }
+
+        // run the method with the arguments
+        $method = self::remGetMethodFromKey($key);
+        $result = call_user_func_array(array($binding, '_rem_' . $method), $args);
+
+        // cache that method result
+        self::remCache($id, $method, $args, $result);
+
+        // TODO catch errors if the # of arguments the method takes has changed
+        // or the method no longer exists
+    }
+
+    private static function remRecacheId($id, $binding) {
         $key_pattern = self::$_key_prefix . ":$id:*";
         $keys = self::$_redis->keys($key_pattern);
 
         // foreach cached methods for this id/class
         foreach($keys as $key) {
-            // get the arguments 
-            $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
-
-            foreach($args as &$arg) {
-                $class = new ReflectionClass($arg);
-                if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
-                    $method = $class->getMethod('remHydrate');
-                    $arg = $method->invokeArgs(null, array($arg->remId()));
-                }
-            }
-
-            // run the method with the arguments
-            $method = self::remGetMethodFromKey($key);
-            $result = call_user_func_array(array($this, '_rem_' . $method), $args);
-
-            // cache that method result
-            self::remCache($id, $method, $args, $result);
+            self::remRecacheKey($key, $id, $binding);
         }
+    }
 
-        // TODO catch errors if the # of arguments the method takes has changed
-        // or the method no longer exists
+    public static function remStaticRecache() {
+        self::remRecacheId(get_called_class(), null);
+    }
+
+    /**
+     * Recalculate all cached methods for this instance and
+     * overwrite the existing values in the cache.
+     */
+    public function remRecache() {
+        if(method_exists($this, 'remId')) {
+            self::remRecacheId($this->remId(), $this);
+        }
+        self::remStaticRecache();
     }
 
     /**

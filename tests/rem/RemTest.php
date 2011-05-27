@@ -33,6 +33,10 @@ class Fake extends Rem {
         return 'Fake.42';
     }
 
+    public static function _rem_staticTime() {
+        return time();
+    }
+
     public function _rem_time() {
         return time();
     }
@@ -140,7 +144,18 @@ class RemTest extends PHPUnit_Framework_TestCase
 
         $new_time = $fake->time();
         $this->assertGreaterThan($start, $new_time);
+    }
 
+    public function testStaticRecache() {
+        $time = Fake::staticTime(); // call num_calls() to cache the result
+        $start = time();
+        $this->assertGreaterThanOrEqual($time, $start);
+
+        sleep(1);
+        Fake::remStaticRecache();
+
+        $new_time = Fake::staticTime();
+        $this->assertGreaterThan($start, $new_time);
     }
 
     public function testRecacheWithHydrate() {
