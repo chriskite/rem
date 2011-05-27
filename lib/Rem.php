@@ -72,7 +72,34 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecache() {
-       //@TODO implement this 
+        // TODO support recaching static methods
+        $id = $this->remId();
+        $key_pattern = self::$_key_prefix . ":$id:*";
+        $keys = self::$_redis->keys($key_pattern);
+
+        // foreach cached methods for this id/class
+        foreach($keys as $key) {
+            // get the arguments 
+            $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
+
+            foreach($args as &$arg) {
+                $class = new ReflectionClass($arg);
+                if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
+                    $method = $class->getMethod('remHydrate');
+                    $arg = $method->invokeArgs(null, array($arg->remId()));
+                }
+            }
+
+            // run the method with the arguments
+            $method = self::remGetMethodFromKey($key);
+            $result = call_user_func_array(array($this, '_rem_' . $method), $args);
+
+            // cache that method result
+            self::remCache($id, $method, $args, $result);
+        }
+
+        // TODO catch errors if the # of arguments the method takes has changed
+        // or the method no longer exists
     }
 
     /**
@@ -81,8 +108,8 @@ class Rem {
     public function remInvalidate() {
         $id = $this->remId();
         $key_pattern = self::$_key_prefix . ":$id:*";
-        $keys = $this->redis->keys($key_pattern);
-        $this->redis->pipeline(function($pipe) {
+        $keys = self::$_redis->keys($key_pattern);
+        self::$_redis->pipeline(function($pipe) {
             foreach($keys as $key) {
                 $pipe->del($key);      
             }
@@ -172,6 +199,11 @@ class Rem {
     private static function remGetKey($id, $method, $args) {
         $hash = substr(sha1(self::remSerializeArgs($args)), 16);
         return self::$_key_prefix . ":$id:$method:$hash";
+    }
+
+    private static function remGetMethodFromKey($key) {
+        $parts = explode(':', $key);
+        return $parts[2];
     }
 
     /**

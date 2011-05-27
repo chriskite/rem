@@ -3,8 +3,16 @@ require_once REM_PATH . '/Rem.php';
 require_once('Predis.php');
 
 class FakeObject extends Rem {
+    public static function remHydrate($id) {
+        list($class, $name) = explode('.', $id);
+        $obj = new FakeObject($name);
+        $obj->hydrated = true;
+        return $obj;
+    }
+
     public function __construct($name) {
         $this->name = $name;
+        $this->hydrated = false;
     }
 
     public function remId() {
@@ -25,6 +33,10 @@ class Fake extends Rem {
         return 'Fake.42';
     }
 
+    public function _rem_time() {
+        return time();
+    }
+
     public function foo() {
         return 'foo';
     }
@@ -35,6 +47,10 @@ class Fake extends Rem {
 
     public function _rem_getObjectName($obj) {
         return $obj->name;
+    }
+
+    public function _rem_getObjectHydrated($obj) {
+        return $obj->hydrated;
     }
 }
 
@@ -74,8 +90,7 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('bar', $fake->bar());
 
         /* change the cached value in redis and test that it is reflected on the instance */
-        $key = $keys[0];
-        $this->redis->hset($key, 'val', serialize('Baz'));
+        $key = $keys[0]; $this->redis->hset($key, 'val', serialize('Baz'));
         $this->assertEquals('Baz', $fake->bar());
     }
 
@@ -112,6 +127,32 @@ class RemTest extends PHPUnit_Framework_TestCase
         /* test that a different argument doesn't get the cached result */
         $another_fake = new FakeObject('bar');
         $this->assertEquals('bar', $fake->getObjectName($another_fake));
+    }
+
+    public function testRecache() {
+        $fake = new Fake();
+        $time = $fake->time(); // call num_calls() to cache the result
+        $start = time();
+        $this->assertGreaterThanOrEqual($time, $start);
+
+        sleep(1);
+        $fake->remRecache();
+
+        $new_time = $fake->time();
+        $this->assertGreaterThan($start, $new_time);
+
+    }
+
+    public function testRecacheWithHydrate() {
+        $fake = new Fake();
+        $fake_obj = new FakeObject('Herp');
+        $hydrated = $fake->getObjectHydrated($fake_obj); // call to cache result
+        $this->assertFalse($hydrated);
+
+        $fake->remRecache();
+
+        $new_hydrated = $fake->getObjectHydrated($fake_obj);
+        $this->assertTrue($new_hydrated);
     }
 }
 ?>
