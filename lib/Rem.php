@@ -8,6 +8,13 @@ class RemId {
 
 class Rem {
     /**
+     * Whether to actually do caching or just pass methods calls through.
+     * @access protected
+     * @var bool
+     */
+    protected static $_enabled = true;
+
+    /**
      * Expiration time in seconds for new cached values.
      * By default set to one day.
      * @access protected
@@ -47,6 +54,20 @@ class Rem {
     }
 
     /**
+     * Disable caching, passing calls to the normal instance method instead.
+     */
+    public static function remDisable() {
+        self::$_enabled = false;
+    }
+
+    /**
+     * Enable caching (the default).
+     */
+    public static function remEnable() {
+        self::$_enabled = true;
+    }
+
+    /**
      * Recalculate all cached methods for this instance and
      * overwrite the existing values in the cache.
      */
@@ -58,7 +79,14 @@ class Rem {
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
-       //@TODO implement this 
+        $id = $this->remId();
+        $key_pattern = self::$_key_prefix . ":$id:*";
+        $keys = $this->redis->keys($key_pattern);
+        $this->redis->pipeline(function($pipe) {
+            foreach($keys as $key) {
+                $pipe->del($key);      
+            }
+        });
     }
 
     /**
@@ -66,8 +94,15 @@ class Rem {
      * corresponding _rem_ method if it exists, and cache the result.
      */
     public function __call($method, $args) {
+        if(!method_exists($this, 'remId')) {
+            throw new Exception("Undefined method '$method' called on class that inherits from Rem, but does not implement remId().");
+        }
+
         $rem_method = "_rem_$method";
-        $value = self::remGetCached($this->remId(), $method, $args);
+
+        if(self::$_enabled) {
+            $value = self::remGetCached($this->remId(), $method, $args);
+        }
 
         if(null === $value) {
             // this method was not cached for this instance, so run the method
@@ -93,10 +128,11 @@ class Rem {
         $key = self::remGetKey($id, $method, $args);
         self::$_redis->hset($key, 'args', serialize($args));
         self::$_redis->hset($key, 'val', serialize($value));
+        self::$_redis->expire($key, self::$_expiry);
     }
 
     private static function remGetKey($id, $method, $args) {
-        $hash = substr(sha1(self::remSerializeArgs($args)), 9);
+        $hash = substr(sha1(self::remSerializeArgs($args)), 16);
         return self::$_key_prefix . ":$id:$method:$hash";
     }
 
@@ -116,18 +152,6 @@ class Rem {
         $args_copy = $args;
         array_walk_recursive($args_copy, $stringify);
         return serialize($args_copy);
-    }
-
-    /**
-     * Get the ID string of this instance.
-     * This method should be overridden in classes that inherit
-     * from Rem.
-     * The ID string must uniquely represent a given instance,
-     * and must be valid as part of a Redis key.
-     * @return string $id the Rem ID string
-     */
-    public function remId() {
-        throw new Exception('remId() called on a class that did not implement it. Classes that inherit from Rem must implement remId().');
     }
 
 }
