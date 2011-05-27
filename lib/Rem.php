@@ -105,6 +105,10 @@ class Rem {
         return self::remHandleCall($method, $args);
     }
 
+    /**
+     * Handle a static or instance call, either caching the result
+     * or returning the cached result.
+     */
     private static function remHandleCall($method, $args, $object = null) {
         if(null !== $object && !method_exists($object, 'remId')) {
             throw new Exception("Undefined method '$method' called on class that inherits from Rem, but does not implement remId().");
@@ -128,6 +132,13 @@ class Rem {
         return $value;
     }
 
+    /**
+     * Get a cached value from Redis.
+     * @param string $id
+     * @param string $method
+     * @param array $args
+     * @return mixed unserialized value
+     */
     private static function remGetCached($id, $method, $args) {
         $key = self::remGetKey($id, $method, $args);
         $value = self::$_redis->hget($key, 'val');
@@ -137,6 +148,13 @@ class Rem {
         return $value;
     }
 
+    /**
+     * Store a value serialized into the cache.
+     * @param string $id
+     * @param string $method
+     * @param array $args
+     * @param mixed $value
+     */
     private static function remCache($id, $method, $args, $value) {
         $key = self::remGetKey($id, $method, $args);
         self::$_redis->hset($key, 'args', serialize($args));
@@ -144,11 +162,24 @@ class Rem {
         self::$_redis->expire($key, self::$_expiry);
     }
 
+    /**
+     * Create the Redis key string for the values.
+     * @param string $id
+     * @param string $method
+     * @param array $args
+     * @return string
+     */
     private static function remGetKey($id, $method, $args) {
         $hash = substr(sha1(self::remSerializeArgs($args)), 16);
         return self::$_key_prefix . ":$id:$method:$hash";
     }
 
+    /**
+     * Create a serialized string from arguments. 
+     * Used to hash and index keys.
+     * @param array $args
+     * @return string
+     */
     private static function remSerializeArgs($args) {
         $stringify = function(&$value, $index) {
             if(is_array($value)) {
