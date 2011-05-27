@@ -90,26 +90,39 @@ class Rem {
     }
 
     /**
-     * Intercept calls to undefined functions. Call the
+     * Intercept calls to undefined instance methods. Call the
      * corresponding _rem_ method if it exists, and cache the result.
      */
     public function __call($method, $args) {
-        if(!method_exists($this, 'remId')) {
+        return self::remHandleCall($method, $args, $this);
+    }
+
+    /**
+     * Intercept calls to undefined static methods. Call the
+     * corresponding _rem_ method if it exists, and cache the result.
+     */
+    public static function __callStatic($method, $args) {
+        return self::remHandleCall($method, $args);
+    }
+
+    private static function remHandleCall($method, $args, $object = null) {
+        if(null !== $object && !method_exists($object, 'remId')) {
             throw new Exception("Undefined method '$method' called on class that inherits from Rem, but does not implement remId().");
         }
 
         $rem_method = "_rem_$method";
+        $id = (null === $object) ? get_called_class() : $object->remId(); 
 
         if(self::$_enabled) {
-            $value = self::remGetCached($this->remId(), $method, $args);
+            $value = self::remGetCached($id, $method, $args);
         }
 
         if(null === $value) {
             // this method was not cached for this instance, so run the method
-            $value = call_user_func_array(array($this, $rem_method), $args);
+            $value = call_user_func_array(array($object ? $object : $id, $rem_method), $args);
 
             // cache the value
-            self::remCache($this->remId(), $method, $args, $value);
+            self::remCache($id, $method, $args, $value);
         }
 
         return $value;
