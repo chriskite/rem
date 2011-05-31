@@ -1,5 +1,17 @@
 <?
 
+/**
+ * RemSingleton is provided for convenience when you have
+ * multiple classes for which each instance should have the
+ * same RemId. For example, any singleton class could inherit
+ * from RemSingleton to avoid having to specify a remId() method.
+ */
+class RemSingleton {
+    public function remId() {
+        return get_called_class();
+    }
+}
+
 class RemId {
     public function __construct($id) {
         $this->id = $id;
@@ -80,14 +92,18 @@ class Rem {
         }
 
         // run the method with the arguments
-        $method = self::remGetMethodFromKey($key);
-        $result = call_user_func_array(array($binding, '_rem_' . $method), $args);
+        $method_name = self::remGetMethodFromKey($key);
+        try {
+            $class = new ReflectionClass($binding === null ? $id : $binding);
+            $method = $class->getMethod('_rem_' . $method_name);
+            $result = $method->invokeArgs($binding, $args);
+        } catch(Exception $e) {
+            // since the method call failed, destroy this cached key
+            self::remInvalidateKey($key);
+        }
 
         // cache that method result
-        self::remCache($id, $method, $args, $result);
-
-        // TODO catch errors if the # of arguments the method takes has changed
-        // or the method no longer exists
+        self::remCache($id, $method_name, $args, $result);
     }
 
     private static function remRecacheId($id, $binding) {
@@ -127,6 +143,14 @@ class Rem {
                 $pipe->del($key);      
             }
         });
+    }
+
+    /**
+     * Delete the cached key from Redis
+     * @param string $key
+     */
+    private static function remInvalidateKey($key) {
+        self::$_redis->del($key);
     }
 
     /**
