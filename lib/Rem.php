@@ -6,7 +6,7 @@
  * same RemId. For example, any singleton class could inherit
  * from RemSingleton to avoid having to specify a remId() method.
  */
-class RemSingleton {
+class RemSingleton extends Rem {
     public function remId() {
         return get_called_class();
     }
