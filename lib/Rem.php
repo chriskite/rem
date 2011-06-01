@@ -79,6 +79,60 @@ class Rem {
         self::$_enabled = true;
     }
 
+    /**
+     * Recache all static methods for the called class.
+     */
+    public static function remStaticRecache() {
+        self::remRecacheId(get_called_class(), null);
+    }
+
+    /**
+     * Recalculate all cached methods for this instance and
+     * overwrite the existing values in the cache.
+     */
+    public function remRecache() {
+        if(method_exists($this, 'remId')) {
+            self::remRecacheId($this->remId(), $this);
+        }
+        self::remStaticRecache();
+    }
+
+    /**
+     * Remove all cached methods for this instance from the cache.
+     */
+    public function remInvalidate() {
+        $id = $this->remId();
+        $key_pattern = self::$_key_prefix . ":$id:*";
+        $keys = self::$_redis->keys($key_pattern);
+        self::$_redis->pipeline(function($pipe) {
+            foreach($keys as $key) {
+                $pipe->del($key);      
+            }
+        });
+    }
+
+    /**
+     * Intercept calls to undefined instance methods. Call the
+     * corresponding _rem_ method if it exists, and cache the result.
+     */
+    public function __call($method, $args) {
+        return self::remHandleCall($method, $args, $this);
+    }
+
+    /**
+     * Intercept calls to undefined static methods. Call the
+     * corresponding _rem_ method if it exists, and cache the result.
+     */
+    public static function __callStatic($method, $args) {
+        return self::remHandleCall($method, $args);
+    }
+
+    /**
+     * Recache an individual key for class/instance
+     * @param string $key
+     * @param string $id
+     * @param object $binding
+     */
     private static function remRecacheKey($key, $id, $binding) {
         // get the arguments 
         $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
@@ -116,57 +170,12 @@ class Rem {
         }
     }
 
-    public static function remStaticRecache() {
-        self::remRecacheId(get_called_class(), null);
-    }
-
-    /**
-     * Recalculate all cached methods for this instance and
-     * overwrite the existing values in the cache.
-     */
-    public function remRecache() {
-        if(method_exists($this, 'remId')) {
-            self::remRecacheId($this->remId(), $this);
-        }
-        self::remStaticRecache();
-    }
-
-    /**
-     * Remove all cached methods for this instance from the cache.
-     */
-    public function remInvalidate() {
-        $id = $this->remId();
-        $key_pattern = self::$_key_prefix . ":$id:*";
-        $keys = self::$_redis->keys($key_pattern);
-        self::$_redis->pipeline(function($pipe) {
-            foreach($keys as $key) {
-                $pipe->del($key);      
-            }
-        });
-    }
-
     /**
      * Delete the cached key from Redis
      * @param string $key
      */
     private static function remInvalidateKey($key) {
         self::$_redis->del($key);
-    }
-
-    /**
-     * Intercept calls to undefined instance methods. Call the
-     * corresponding _rem_ method if it exists, and cache the result.
-     */
-    public function __call($method, $args) {
-        return self::remHandleCall($method, $args, $this);
-    }
-
-    /**
-     * Intercept calls to undefined static methods. Call the
-     * corresponding _rem_ method if it exists, and cache the result.
-     */
-    public static function __callStatic($method, $args) {
-        return self::remHandleCall($method, $args);
     }
 
     /**
