@@ -98,6 +98,23 @@ class Rem {
     }
 
     /**
+     * Iterate over this instance's remDependents and remRecache them.
+     */
+    public function remRecacheDependents() {
+        $class = new ReflectionClass($this);
+        echo "Recaching dependents\n";
+        if($class->hasMethod('remDependents')) {
+            foreach($this->remDependents() as $dependent) {
+                $dependent_class = new ReflectionClass($dependent);
+                if(!$dependent_class->isSubclassOf('Rem')) {
+                    throw new Exception("Dependent of '$class' does not inherit from Rem");
+                }
+                $dependent->remRecache();
+            }
+        }
+    }
+
+    /**
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
@@ -134,14 +151,17 @@ class Rem {
      * @param object $binding
      */
     private static function remRecacheKey($key, $id, $binding) {
+        echo "Recaching $key for $id\n";
         // get the arguments 
         $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
 
         foreach($args as &$arg) {
-            $class = new ReflectionClass($arg);
-            if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
-                $method = $class->getMethod('remHydrate');
-                $arg = $method->invokeArgs(null, array($arg->remId()));
+            if(is_object($arg)) {
+                $class = new ReflectionClass($arg);
+                if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
+                    $method = $class->getMethod('remHydrate');
+                    $arg = $method->invokeArgs(null, array($arg->remId()));
+                }
             }
         }
 
@@ -161,6 +181,10 @@ class Rem {
     }
 
     private static function remRecacheId($id, $binding) {
+        if(null === $id) {
+            throw new Exception("remId() must be non-null and non-empty.");
+        }
+
         $key_pattern = self::$_key_prefix . ":$id:*";
         $keys = self::$_redis->keys($key_pattern);
 
@@ -189,6 +213,10 @@ class Rem {
 
         $rem_method = "_rem_$method";
         $id = (null === $object) ? get_called_class() : $object->remId(); 
+
+        if(null === $id) {
+            throw new Exception("remId() must be non-null and non-empty.");
+        }
 
         if(self::$_enabled) {
             $value = self::remGetCached($id, $method, $args);
@@ -243,7 +271,7 @@ class Rem {
      * @return string
      */
     private static function remGetKey($id, $method, $args) {
-        $hash = substr(sha1(self::remSerializeArgs($args)), 16);
+        $hash = substr(sha1(self::remSerializeArgs($args)), 12);
         return self::$_key_prefix . ":$id:$method:$hash";
     }
 
