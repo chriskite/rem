@@ -16,8 +16,8 @@
  <date>2011-07-19</date>
  <time>11:22:01</time>
  <version>
-  <release>0.0.1</release>
-  <api>0.0.1</api>
+  <release>0.0.2</release>
+  <api>0.0.2</api>
  </version>
  <stability>
   <release>alpha</release>
@@ -46,8 +46,8 @@ First release
  <changelog>
   <release>
    <version>
-    <release>0.0.1</release>
-    <api>0.0.1</api>
+    <release>0.0.2</release>
+    <api>0.0.2</api>
    </version>
    <stability>
     <release>alpha</release>
@@ -56,7 +56,6 @@ First release
    <date>2011-07-19</date>
    <license uri="http://www.opensource.org/licenses/mit-license.html">MIT</license>
    <notes>
-First release
    </notes>
   </release>
  </changelog>
