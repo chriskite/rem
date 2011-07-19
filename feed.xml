@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:base="http://chriskite.github.com/rem">
+    <title>REM's PEAR Channel Server Latest Releases</title>
+    <link href="http://chriskite.github.com/rem" />
+    <author>
+        <name>http://chriskite.github.com/rem</name>
+    </author>
+
+
+</feed>

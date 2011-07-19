@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<server>
+<name>REM</name>
+<summary>REM's PEAR Channel Server</summary>
+<alias>rem</alias>
+<url>http://chriskite.github.com/rem</url>
+</server>
