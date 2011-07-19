@@ -308,7 +308,7 @@ class Rem {
         $stringify = function(&$value, $index) {
             if(is_array($value)) {
                 $value = self::remSerializeArgs($value);
-            } elseif(method_exists($value, 'remId')) {
+            } elseif(!is_string($value) && method_exists($value, 'remId')) {
                 $id = $value->remId();
                 if(null === $id || "" === $id) {
                     throw new Exception("remId() must be non-null and non-empty.");
