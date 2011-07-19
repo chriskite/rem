@@ -309,11 +309,16 @@ class Rem {
             if(is_array($value)) {
                 $value = self::remSerializeArgs($value);
             } elseif(method_exists($value, 'remId')) {
-                $id = $value->remId();
+                if (is_string($value)) {
+                    $obj = new $value;
+                    $id = $obj->remId();
+                } else {
+                    $id = $value->remId();
+                }
                 if(null === $id || "" === $id) {
                     throw new Exception("remId() must be non-null and non-empty.");
                 }
-                $value = new RemId($value->remId());
+                $value = new RemId($id);
             }
         };
 
