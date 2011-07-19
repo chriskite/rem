@@ -129,6 +129,18 @@ class Rem {
     }
 
     /**
+     * Clear the entire cache.
+     */
+    public static function remClear() {
+        $keys = self::$_redis->keys(self::$_key_prefix . ":*");
+        self::$_redis->pipeline(function($pipe) {
+            foreach($keys as $key) {
+                $pipe->del($key);      
+            }
+        });
+    }
+
+    /**
      * Intercept calls to undefined instance methods. Call the
      * corresponding _rem_ method if it exists, and cache the result.
      */
@@ -212,6 +224,12 @@ class Rem {
         }
 
         $rem_method = "_rem_$method";
+        // check that the rem method exists
+        $reflect = new ReflectionClass((null === $object) ? get_called_class() : $object);
+        if(!$reflect->hasMethod($rem_method)) {
+            throw new Exception("Undefined method '$method' called, and no corresponding '$rem_method' method defined.");
+        }
+
         $id = (null === $object) ? get_called_class() : $object->remId(); 
 
         if(null === $id) {
