@@ -121,7 +121,7 @@ class Rem {
         $id = $this->remId();
         $key_pattern = self::$_key_prefix . ":$id:*";
         $keys = self::$_redis->keys($key_pattern);
-        self::$_redis->pipeline(function($pipe) {
+        self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
                 $pipe->del($key);      
             }
@@ -133,7 +133,7 @@ class Rem {
      */
     public static function remClear() {
         $keys = self::$_redis->keys(self::$_key_prefix . ":*");
-        self::$_redis->pipeline(function($pipe) {
+        self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
                 $pipe->del($key);      
             }
