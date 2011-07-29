@@ -25,6 +25,7 @@
  </stability>
  <license uri="http://www.opensource.org/licenses/mit-license.html">MIT</license>
  <notes>
+	closure bug fix
  </notes>
  <contents>
   <dir baseinstalldir="/" name="/">
@@ -55,6 +56,7 @@
    <date>2011-07-29</date>
    <license uri="http://www.opensource.org/licenses/mit-license.html">MIT</license>
    <notes>
+	closure bug fix
    </notes>
   </release>
  </changelog>
