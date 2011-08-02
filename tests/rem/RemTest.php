@@ -4,7 +4,7 @@ require_once('Predis.php');
 
 class FakeObject extends Rem {
     public static function remHydrate($id) {
-        list($class, $name) = explode('.', $id);
+        $name = $id;
         $obj = new FakeObject($name);
         $obj->hydrated = true;
         return $obj;
@@ -16,11 +16,15 @@ class FakeObject extends Rem {
     }
 
     public function remId() {
-        return "FakeObject." . $this->name;
+        return $this->name;
     }
 }
 
 class Fake extends Rem {
+    public static function remHydrate($id) {
+        return new Fake();
+    }
+
     public static function fooStatic() {
         return 'fooStatic';
     }
@@ -30,7 +34,7 @@ class Fake extends Rem {
     }
 
     public function remId() {
-        return 'Fake.42';
+        return '42';
     }
 
     public static function _rem_staticTime() {
@@ -56,6 +60,7 @@ class Fake extends Rem {
     public function _rem_getObjectHydrated($obj) {
         return $obj->hydrated;
     }
+
 }
 
 class RemTest extends PHPUnit_Framework_TestCase
@@ -141,6 +146,19 @@ class RemTest extends PHPUnit_Framework_TestCase
 
         sleep(1);
         $fake->remRecache();
+
+        $new_time = $fake->time();
+        $this->assertGreaterThan($start, $new_time);
+    }
+
+    public function testRecacheAll() {
+        $fake = new Fake();
+        $time = $fake->time(); // call num_calls() to cache the result
+        $start = time();
+        $this->assertGreaterThanOrEqual($time, $start);
+
+        sleep(1);
+        Rem::remRecacheAll();
 
         $new_time = $fake->time();
         $this->assertGreaterThan($start, $new_time);
