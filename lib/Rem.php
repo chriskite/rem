@@ -93,7 +93,7 @@ class Rem {
      */
     public static function remStaticRecache() {
         $id = new RemId(get_called_class());
-        self::remRecacheId($id, null);
+        self::remRecacheId($id, $id->class);
     }
 
     /**
@@ -113,7 +113,23 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecacheAll() {
+        $keys = self::$_redis->keys(self::$_key_prefix . ":*");
         
+        foreach($keys as $key) {
+            // get class name and id, then hydrate it if possible
+            list($rem, $classname, $id) = explode(':', $key);
+            $class = new ReflectionClass($classname);
+            if($class->hasMethod('remId') && $class->hasMethod('remHydrate')) {
+                $method = $class->getMethod('remHydrate');
+                $obj = $method->invokeArgs(null, array($id));
+                if(null === $obj) {
+                    throw new Exception("remHydrate() returned null");
+                }
+                $obj->remRecache();
+            } else {
+                error_log("Cannot recache $classname:$id because it is missing remId() or remHydrate()");
+            }
+        }
     }
 
     /**
@@ -121,7 +137,6 @@ class Rem {
      */
     public function remRecacheDependents() {
         $class = new ReflectionClass($this);
-        echo "Recaching dependents\n";
         if($class->hasMethod('remDependents')) {
             foreach($this->remDependents() as $dependent) {
                 $dependent_class = new ReflectionClass($dependent);
@@ -185,8 +200,7 @@ class Rem {
      * @param string $id
      * @param object $binding
      */
-    private static function remRecacheKey($key, $id, $binding) {
-        echo "Recaching $key for $id\n";
+    private static function remRecacheKey($key, RemId $id, $binding) {
         // get the arguments 
         $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
 
@@ -203,7 +217,7 @@ class Rem {
         // run the method with the arguments
         $method_name = self::remGetMethodFromKey($key);
         try {
-            $class = new ReflectionClass($binding === null ? $id->class : $binding);
+            $class = new ReflectionClass($binding);
             $method = $class->getMethod('_rem_' . $method_name);
             $result = $method->invokeArgs($binding, $args);
         } catch(Exception $e) {

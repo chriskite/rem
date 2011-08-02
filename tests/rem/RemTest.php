@@ -21,6 +21,10 @@ class FakeObject extends Rem {
 }
 
 class Fake extends Rem {
+    public static function remHydrate($id) {
+        return new Fake();
+    }
+
     public static function fooStatic() {
         return 'fooStatic';
     }
@@ -56,6 +60,7 @@ class Fake extends Rem {
     public function _rem_getObjectHydrated($obj) {
         return $obj->hydrated;
     }
+
 }
 
 class RemTest extends PHPUnit_Framework_TestCase
@@ -141,6 +146,19 @@ class RemTest extends PHPUnit_Framework_TestCase
 
         sleep(1);
         $fake->remRecache();
+
+        $new_time = $fake->time();
+        $this->assertGreaterThan($start, $new_time);
+    }
+
+    public function testRecacheAll() {
+        $fake = new Fake();
+        $time = $fake->time(); // call num_calls() to cache the result
+        $start = time();
+        $this->assertGreaterThanOrEqual($time, $start);
+
+        sleep(1);
+        Rem::remRecacheAll();
 
         $new_time = $fake->time();
         $this->assertGreaterThan($start, $new_time);
