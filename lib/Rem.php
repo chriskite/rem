@@ -7,14 +7,23 @@
  * from RemSingleton to avoid having to specify a remId() method.
  */
 class RemSingleton extends Rem {
-    public function remId() {
-        return get_called_class();
+    public function remKeyPrefix() {
+        return self::$_key_prefix . ':' . get_called_class() . ':';
     }
 }
 
 class RemId {
-    public function __construct($id) {
+    public function __construct($class, $id = null) {
+        $this->class = $class;
         $this->id = $id;
+    }
+
+    public function getKey($prefix) {
+        return $prefix . ':' . $this->__toString();
+    }
+
+    public function __toString() {
+        return "{$this->class}:{$this->id}";
     }
 }
 
@@ -83,7 +92,8 @@ class Rem {
      * Recache all static methods for the called class.
      */
     public static function remStaticRecache() {
-        self::remRecacheId(get_called_class(), null);
+        $id = new RemId(get_called_class());
+        self::remRecacheId($id, null);
     }
 
     /**
@@ -92,9 +102,18 @@ class Rem {
      */
     public function remRecache() {
         if(method_exists($this, 'remId')) {
-            self::remRecacheId($this->remId(), $this);
+            $id = new RemId(get_called_class(), $this->remId());
+            self::remRecacheId($id, $this);
         }
         self::remStaticRecache();
+    }
+
+    /**
+     * Recalculate all cached methods for all instances,
+     * overwrite the existing values in the cache.
+     */
+    public function remRecacheAll() {
+        
     }
 
     /**
@@ -114,12 +133,16 @@ class Rem {
         }
     }
 
+    public function remKeyPrefix() {
+        return self::$_key_prefix . ':' . get_called_class() . ':' . $this->remId();
+    }
+
     /**
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
-        $id = $this->remId();
-        $key_pattern = self::$_key_prefix . ":$id:*";
+        $prefix = $this->remKeyPrefix();
+        $key_pattern = $prefix . ':*';
         $keys = self::$_redis->keys($key_pattern);
         self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
@@ -180,7 +203,7 @@ class Rem {
         // run the method with the arguments
         $method_name = self::remGetMethodFromKey($key);
         try {
-            $class = new ReflectionClass($binding === null ? $id : $binding);
+            $class = new ReflectionClass($binding === null ? $id->class : $binding);
             $method = $class->getMethod('_rem_' . $method_name);
             $result = $method->invokeArgs($binding, $args);
         } catch(Exception $e) {
@@ -192,12 +215,12 @@ class Rem {
         self::remCache($id, $method_name, $args, $result);
     }
 
-    private static function remRecacheId($id, $binding) {
+    private static function remRecacheId(RemId $id, $binding) {
         if(null === $id) {
-            throw new Exception("remId() must be non-null and non-empty.");
+            throw new Exception("id must be non-null and non-empty.");
         }
 
-        $key_pattern = self::$_key_prefix . ":$id:*";
+        $key_pattern = $id->getKey(self::$_key_prefix) . ':*';
         $keys = self::$_redis->keys($key_pattern);
 
         // foreach cached methods for this id/class
@@ -230,7 +253,7 @@ class Rem {
             throw new Exception("Undefined method '$method' called, and no corresponding '$rem_method' method defined.");
         }
 
-        $id = (null === $object) ? get_called_class() : $object->remId(); 
+        $id = (null === $object) ? new RemId(get_called_class()) : new RemId(get_called_class(), $object->remId());
 
         if(null === $id) {
             throw new Exception("remId() must be non-null and non-empty.");
@@ -242,7 +265,7 @@ class Rem {
 
         if(null === $value) {
             // this method was not cached for this instance, so run the method
-            $value = call_user_func_array(array($object ? $object : $id, $rem_method), $args);
+            $value = call_user_func_array(array($object ? $object : $id->class, $rem_method), $args);
 
             // cache the value
             self::remCache($id, $method, $args, $value);
@@ -290,12 +313,12 @@ class Rem {
      */
     private static function remGetKey($id, $method, $args) {
         $hash = substr(sha1(self::remSerializeArgs($args)), 12);
-        return self::$_key_prefix . ":$id:$method:$hash";
+        return $id->getKey(self::$_key_prefix) . ":$method:$hash";
     }
 
     private static function remGetMethodFromKey($key) {
         $parts = explode(':', $key);
-        return $parts[2];
+        return $parts[3];
     }
 
     /**
@@ -313,7 +336,8 @@ class Rem {
                 if(null === $id || "" === $id) {
                     throw new Exception("remId() must be non-null and non-empty.");
                 }
-                $value = new RemId($value->remId());
+                $reflection = new ReflectionClass($value);
+                $value = new RemId($reflection->getName(), $value->remId());
             }
         };
 

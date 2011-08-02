@@ -4,7 +4,7 @@ require_once('Predis.php');
 
 class FakeObject extends Rem {
     public static function remHydrate($id) {
-        list($class, $name) = explode('.', $id);
+        $name = $id;
         $obj = new FakeObject($name);
         $obj->hydrated = true;
         return $obj;
@@ -16,7 +16,7 @@ class FakeObject extends Rem {
     }
 
     public function remId() {
-        return "FakeObject." . $this->name;
+        return $this->name;
     }
 }
 
@@ -30,7 +30,7 @@ class Fake extends Rem {
     }
 
     public function remId() {
-        return 'Fake.42';
+        return '42';
     }
 
     public static function _rem_staticTime() {
