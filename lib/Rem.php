@@ -120,12 +120,15 @@ class Rem {
             list($rem, $classname, $id) = explode(':', $key);
             $class = new ReflectionClass($classname);
             if($class->hasMethod('remId') && $class->hasMethod('remHydrate')) {
-                $method = $class->getMethod('remHydrate');
-                $obj = $method->invokeArgs(null, array($id));
+                $obj = $classname::remHydrate($id);
                 if(null === $obj) {
-                    throw new Exception("remHydrate() returned null");
+                    error_log("remHydrate() returned null for $classname:$id, invalidating its cache...");
+                    Rem::remDeleteKeyPattern(self::$_key_prefix . ":$classname:$id:*");
+                } else {
+                    $obj->remRecache();
                 }
-                $obj->remRecache();
+            } elseif ("" == $id) {
+                $classname::remStaticRecache();
             } else {
                 error_log("Cannot recache $classname:$id because it is missing remId() or remHydrate()");
             }
@@ -156,9 +159,17 @@ class Rem {
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
-        $prefix = $this->remKeyPrefix();
-        $key_pattern = $prefix . ':*';
-        $keys = self::$_redis->keys($key_pattern);
+        $key_pattern = $this->remKeyPrefix() . ':*';
+        Rem::remDeleteKeyPattern($key_pattern);
+    }
+
+    /**
+     * Delete all keys matching a pattern from Redis.
+     *
+     * @param string $pattern
+     */
+    public static function remDeleteKeyPattern($pattern) {
+        $keys = self::$_redis->keys($pattern);
         self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
                 $pipe->del($key);      
