@@ -213,7 +213,12 @@ class Rem {
      */
     private static function remRecacheKey($key, RemId $id, $binding) {
         // get the arguments 
-        $args = unserialize(self::$_redis->hget($key, 'args')); // TODO catch error
+        $arg_string = self::$_redis->hget($key, 'args');
+        $args = unserialize($arg_string);
+        if(false === $args) {
+            self::remInvalidateKey($key);
+            throw new Exception("Unable to unserialize arg string '$arg_string'. Invalidating key '$key'.");
+        }
 
         foreach($args as &$arg) {
             if(is_object($arg)) {
@@ -230,10 +235,11 @@ class Rem {
         try {
             $class = new ReflectionClass($binding);
             $method = $class->getMethod('_rem_' . $method_name);
-            $result = $method->invokeArgs($binding, $args);
+            $result = $method->invokeArgs(is_string($binding) ? null : $binding, $args);
         } catch(Exception $e) {
             // since the method call failed, destroy this cached key
             self::remInvalidateKey($key);
+            throw $e;
         }
 
         // cache that method result
