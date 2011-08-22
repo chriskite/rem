@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<r xmlns="http://pear.php.net/dtd/rest.release2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xlink="http://www.w3.org/1999/xlink" xsi:schemaLocation="http://pear.php.net/dtd/rest.release2 http://pear.php.net/dtd/rest.release2.xsd">
+    <p xlink:href="/rest/p/rem">Rem</p>
+    <c>chriskite.github.com/rem</c>
+    <v>0.1.4</v>
+    <a>0.1.4</a>
+    <mp>5.3.0</mp>
+    <st>alpha</st>
+    <l>MIT</l>
+    <m>chriskite</m>
+    <s>Transparent method cache for PHP and Redis</s>
+    <d>Transparent method cache for PHP and Redis</d>
+    <da>2011-08-22 20:17:43</da>
+    <n>
+recache bug fix
+ </n>
+    <f>3995</f>
+    <g>http://chriskite.github.com/rem/get/Rem-0.1.4</g>
+    <x xlink:href="package.0.1.4.xml"/>
+</r>
