@@ -306,6 +306,7 @@ class Rem {
             $pipe = self::$_redis;
         }
         $pipe->del($key);
+        self::remDeleteIndex($key);
     }
 
     /**
