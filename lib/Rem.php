@@ -10,6 +10,9 @@ class RemSingleton extends Rem {
     public function remGetId() {
         return new RemId(get_called_class());
     }
+    public function remId() {
+        return '';
+    }
 }
 
 class RemId {
@@ -130,10 +133,7 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecache() {
-        if(method_exists($this, 'remId')) {
-            $id = new RemId(get_called_class(), $this->remId());
-            self::remRecacheId($id, $this);
-        }
+        self::remRecacheId($this->remGetId(), $this);
         self::remStaticRecache();
     }
 
@@ -264,7 +264,11 @@ class Rem {
         try {
             $class = new ReflectionClass($binding);
             $method = $class->getMethod('_rem_' . $method_name);
-            $result = $method->invokeArgs(is_string($binding) ? null : $binding, $args);
+            if($method->isStatic() && is_string($binding)) {
+                $result = $method->invokeArgs(null, $args);
+            } elseif(!$method->isStatic() && is_object($binding)) {
+                $result = $method->invokeArgs($binding, $args);
+            }
         } catch(Exception $e) {
             // since the method call failed, destroy this cached key
             self::remInvalidateKey($key);
