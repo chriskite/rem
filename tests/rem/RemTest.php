@@ -91,15 +91,13 @@ class RemTest extends PHPUnit_Framework_TestCase
         /* test that an uncached method returns the right result */
         $this->assertEquals('bar', $fake->bar());
 
-        /* test that calling 'bar' cached a key in redis */
-        $keys = $this->getRemKeys();
-        $this->assertEquals(1, count($keys));
-
         /* test that a cached method returns the right result */
         $this->assertEquals('bar', $fake->bar());
 
         /* change the cached value in redis and test that it is reflected on the instance */
-        $key = $keys[0]; $this->redis->hset($key, 'val', serialize('Baz'));
+        $keys = $this->redis->keys("rem:Fake:42:*");
+        $key = $keys[0];
+        $this->redis->hset($key, 'val', serialize('Baz'));
         $this->assertEquals('Baz', $fake->bar());
     }
 
@@ -110,14 +108,11 @@ class RemTest extends PHPUnit_Framework_TestCase
         /* test that an uncached method returns the right result */
         $this->assertEquals('barStatic', Fake::barStatic());
 
-        /* test that calling 'bar' cached a key in redis */
-        $keys = $this->getRemKeys();
-        $this->assertEquals(1, count($keys));
-
         /* test that a cached method returns the right result */
         $this->assertEquals('barStatic', Fake::barStatic());
 
         /* change the cached value in redis and test that it is reflected on the instance */
+        $keys = $this->redis->keys("rem:Fake::*");
         $key = $keys[0];
         $this->redis->hset($key, 'val', serialize('BazStatic'));
         $this->assertEquals('BazStatic', Fake::barStatic());
