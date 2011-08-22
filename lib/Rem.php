@@ -7,23 +7,62 @@
  * from RemSingleton to avoid having to specify a remId() method.
  */
 class RemSingleton extends Rem {
-    public function remKeyPrefix() {
-        return self::$_key_prefix . ':' . get_called_class() . ':';
+    public function remGetId() {
+        return new RemId(get_called_class());
+    }
+    public function remId() {
+        return '';
     }
 }
 
 class RemId {
+    public $class;
+    public $id;
+
     public function __construct($class, $id = null) {
         $this->class = $class;
         $this->id = $id;
     }
 
-    public function getKey($prefix) {
-        return $prefix . ':' . $this->__toString();
+    public function __toString() {
+        return RemKey::getKeyNamespace() . ':' . "{$this->class}:{$this->id}";
+    }
+}
+
+class RemKey {
+    protected static $_key_namespace = 'rem';
+    public $rem_id;
+    public $method;
+    public $arg_hash;
+
+    public function __construct($rem_id, $method = null, $arg_hash = null) {
+        $this->rem_id = $rem_id;
+        $this->method = $method;
+        $this->arg_hash = $arg_hash;
+    }
+
+    public static function getIndexKey() {
+        return self::$_key_namespace . ':index';
+    }
+
+    public static function getKeyNamespace() {
+        return self::$_key_namespace;
+    }
+
+    public static function setKeyNamespace($namespace) {
+        self::$_key_namespace = $namespace;
+    }
+
+    public function getPrefix() {
+        return $this->rem_id;
+    }
+
+    public function getSuffix() {
+        return $this->method . ':' . $this->arg_hash;
     }
 
     public function __toString() {
-        return "{$this->class}:{$this->id}";
+        return $this->getPrefix() . ':' . $this->getSuffix();
     }
 }
 
@@ -50,13 +89,6 @@ class Rem {
      */
     protected static $_redis;
     
-    /**
-     * String to prefix each key with in Redis. Defaults to 'rem'.
-     * @access protected
-     * @var string 
-     */
-    protected static $_key_prefix = 'rem';
-
     /**
      * Set the Redis client instance to use.
      * @param Predis\Client $predis
@@ -101,10 +133,7 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecache() {
-        if(method_exists($this, 'remId')) {
-            $id = new RemId(get_called_class(), $this->remId());
-            self::remRecacheId($id, $this);
-        }
+        self::remRecacheId($this->remGetId(), $this);
         self::remStaticRecache();
     }
 
@@ -113,7 +142,7 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecacheAll() {
-        $keys = self::$_redis->keys(self::$_key_prefix . ":*");
+        $keys = self::remAllKeys();
         
         foreach($keys as $key) {
             // get class name and id, then hydrate it if possible
@@ -123,7 +152,7 @@ class Rem {
                 $obj = $classname::remHydrate($id);
                 if(null === $obj) {
                     error_log("remHydrate() returned null for $classname:$id, invalidating its cache...");
-                    Rem::remDeleteKeyPattern(self::$_key_prefix . ":$classname:$id:*");
+                    Rem::remDeleteCacheForId(new RemId($classname, $id));
                 } else {
                     $obj->remRecache();
                 }
@@ -151,28 +180,28 @@ class Rem {
         }
     }
 
-    public function remKeyPrefix() {
-        return self::$_key_prefix . ':' . get_called_class() . ':' . $this->remId();
+    private function remGetId() {
+        return new RemId(get_called_class(), $this->remId());
     }
 
     /**
      * Remove all cached methods for this instance from the cache.
      */
     public function remInvalidate() {
-        $key_pattern = $this->remKeyPrefix() . ':*';
-        Rem::remDeleteKeyPattern($key_pattern);
+        Rem::remDeleteCacheForId($this->remGetId());
     }
 
     /**
-     * Delete all keys matching a pattern from Redis.
+     * Delete all keys for a RemId from Redis.
      *
      * @param string $pattern
      */
-    public static function remDeleteKeyPattern($pattern) {
-        $keys = self::$_redis->keys($pattern);
-        self::$_redis->pipeline(function($pipe) use ($keys) {
-            foreach($keys as $key) {
-                $pipe->del($key);      
+    public static function remDeleteCacheForId(RemId $id) {
+        $suffixes = self::$_redis->smembers($id->getKey());
+        self::$_redis->pipeline(function($pipe) use ($suffixes) {
+            foreach($suffixes as $suffix) {
+                $key = $id_key . ":" . $suffix;
+                self::remDeleteKey($key, $pipe);
             }
         });
     }
@@ -181,10 +210,10 @@ class Rem {
      * Clear the entire cache.
      */
     public static function remClear() {
-        $keys = self::$_redis->keys(self::$_key_prefix . ":*");
+        $keys = self::remAllKeys();
         self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
-                $pipe->del($key);      
+                self::remDeleteKey($key, $pipe);      
             }
         });
     }
@@ -211,7 +240,7 @@ class Rem {
      * @param string $id
      * @param object $binding
      */
-    private static function remRecacheKey($key, RemId $id, $binding) {
+    private static function remRecacheKey(RemKey $key, RemId $id, $binding) {
         // get the arguments 
         $arg_string = self::$_redis->hget($key, 'args');
         $args = unserialize($arg_string);
@@ -231,11 +260,15 @@ class Rem {
         }
 
         // run the method with the arguments
-        $method_name = self::remGetMethodFromKey($key);
+        $method_name = $key->method;
         try {
             $class = new ReflectionClass($binding);
             $method = $class->getMethod('_rem_' . $method_name);
-            $result = $method->invokeArgs(is_string($binding) ? null : $binding, $args);
+            if($method->isStatic() && is_string($binding)) {
+                $result = $method->invokeArgs(null, $args);
+            } elseif(!$method->isStatic() && is_object($binding)) {
+                $result = $method->invokeArgs($binding, $args);
+            }
         } catch(Exception $e) {
             // since the method call failed, destroy this cached key
             self::remInvalidateKey($key);
@@ -251,11 +284,11 @@ class Rem {
             throw new Exception("id must be non-null and non-empty.");
         }
 
-        $key_pattern = $id->getKey(self::$_key_prefix) . ':*';
-        $keys = self::$_redis->keys($key_pattern);
-
+        $suffixes = self::$_redis->smembers($id);
         // foreach cached methods for this id/class
-        foreach($keys as $key) {
+        foreach($suffixes as $suffix) {
+            list($method, $arg_hash) = explode(':', $suffix);
+            $key = new RemKey($id, $method, $arg_hash);
             self::remRecacheKey($key, $id, $binding);
         }
     }
@@ -264,8 +297,15 @@ class Rem {
      * Delete the cached key from Redis
      * @param string $key
      */
-    private static function remInvalidateKey($key) {
-        self::$_redis->del($key);
+    private static function remInvalidateKey(RemKey $key) {
+        self::remDeleteKey($key);      
+    }
+
+    private static function remDeleteKey(RemKey $key, $pipe = null) {
+        if(null === $pipe) {
+            $pipe = self::$_redis;
+        }
+        $pipe->del($key);
     }
 
     /**
@@ -313,7 +353,7 @@ class Rem {
      * @return mixed unserialized value
      */
     private static function remGetCached($id, $method, $args) {
-        $key = self::remGetKey($id, $method, $args);
+        $key = self::remCreateKey($id, $method, $args);
         $value = self::$_redis->hget($key, 'val');
         if(null !== $value && "" !== $value) {
             $value = unserialize($value);
@@ -328,11 +368,21 @@ class Rem {
      * @param array $args
      * @param mixed $value
      */
-    private static function remCache($id, $method, $args, $value) {
-        $key = self::remGetKey($id, $method, $args);
+    private static function remCache(RemId $id, $method, $args, $value) {
+        $key = self::remCreateKey($id, $method, $args);
         self::$_redis->hset($key, 'args', serialize($args));
         self::$_redis->hset($key, 'val', serialize($value));
         self::$_redis->expire($key, self::$_expiry);
+    }
+
+    private static function remAddIndex(RemKey $key) {
+        self::$_redis->sadd(RemKey::getIndexKey(), $key->getPrefix());
+        self::$_redis->sadd($key->getPrefix(), $key->getSuffix());
+    }
+
+    private static function remDeleteIndex(RemKey $key) {
+        self::$_redis->srem(RemKey::getIndexKey(), $key->getPrefix());
+        self::$_redis->srem($key->getPrefix(), $key->getSuffix());
     }
 
     /**
@@ -342,14 +392,11 @@ class Rem {
      * @param array $args
      * @return string
      */
-    private static function remGetKey($id, $method, $args) {
+    private static function remCreateKey($id, $method, $args) {
         $hash = substr(sha1(self::remSerializeArgs($args)), 12);
-        return $id->getKey(self::$_key_prefix) . ":$method:$hash";
-    }
-
-    private static function remGetMethodFromKey($key) {
-        $parts = explode(':', $key);
-        return $parts[3];
+        $key = new RemKey($id, $method, $hash);
+        self::remAddIndex($key);
+        return $key;
     }
 
     /**
@@ -375,6 +422,19 @@ class Rem {
         $args_copy = $args;
         array_walk_recursive($args_copy, $stringify);
         return serialize($args_copy);
+    }
+
+    private static function remAllKeys() {
+        $keys = array();
+        $prefix_key = RemKey::getIndexKey();
+        $prefixes = self::$_redis->smembers($prefix_key);
+        foreach($prefixes as $prefix) {
+            $suffixes = self::$_redis->smembers($prefix);
+            foreach($suffixes as $suffix) {
+                $keys[] = $prefix . ":" . $suffix;
+            }
+        }
+        return $keys;
     }
 
 }
