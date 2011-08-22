@@ -339,7 +339,10 @@ class Rem {
             $value = call_user_func_array(array($object ? $object : $id->class, $rem_method), $args);
 
             // cache the value
-            self::remCache($id, $method, $args, $value);
+
+            if(self::$_enabled) {
+                self::remCache($id, $method, $args, $value);
+            }
         }
 
         return $value;
