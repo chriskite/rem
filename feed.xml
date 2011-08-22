@@ -7,6 +7,17 @@
     </author>
 
     <entry>
+        <title>Rem 0.1.5 (alpha)</title>
+        <link href="http://chriskite.github.com/rem/get/Rem-0.1.5.tgz" />
+        <id>Rem-0.1.5</id>
+        <author>
+            <name>chriskite</name>
+        </author>
+        <updated>2011-08-22T21:00:41-05:00</updated>
+        <content>
+            Transparent method cache for PHP and Redis
+        </content>
+    </entry>    <entry>
         <title>Rem 0.1.4 (alpha)</title>
         <link href="http://chriskite.github.com/rem/get/Rem-0.1.4.tgz" />
         <id>Rem-0.1.4</id>
