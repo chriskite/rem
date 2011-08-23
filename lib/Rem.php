@@ -35,6 +35,12 @@ class RemKey {
     public $method;
     public $arg_hash;
 
+    public static function fromString($str) {
+        list($rem, $class, $id, $method, $hash) = explode(':', $str);
+        $id = new RemId($class, $id);
+        return new RemKey($id, $method, $hash);
+    }
+
     public function __construct($rem_id, $method = null, $arg_hash = null) {
         $this->rem_id = $rem_id;
         $this->method = $method;
@@ -213,9 +219,17 @@ class Rem {
         $keys = self::remAllKeys();
         self::$_redis->pipeline(function($pipe) use ($keys) {
             foreach($keys as $key) {
-                self::remDeleteKey($key, $pipe);      
+                Rem::remDeleteKey($key, $pipe);      
             }
         });
+    }
+
+    public static function remDeleteKey(RemKey $key, $pipe = null) {
+        if(null === $pipe) {
+            $pipe = self::$_redis;
+        }
+        $pipe->del($key);
+        self::remDeleteIndex($key);
     }
 
     /**
@@ -301,14 +315,6 @@ class Rem {
         self::remDeleteKey($key);      
     }
 
-    private static function remDeleteKey(RemKey $key, $pipe = null) {
-        if(null === $pipe) {
-            $pipe = self::$_redis;
-        }
-        $pipe->del($key);
-        self::remDeleteIndex($key);
-    }
-
     /**
      * Handle a static or instance call, either caching the result
      * or returning the cached result.
@@ -322,7 +328,7 @@ class Rem {
         // check that the rem method exists
         $reflect = new ReflectionClass((null === $object) ? get_called_class() : $object);
         if(!$reflect->hasMethod($rem_method)) {
-            throw new Exception("Undefined method '$method' called, and no corresponding '$rem_method' method defined.");
+            throw new Exception("Undefined method '$method' called on '{$reflect->getName()}', and no corresponding '$rem_method' method defined.");
         }
 
         $id = (null === $object) ? new RemId(get_called_class()) : new RemId(get_called_class(), $object->remId());
@@ -435,7 +441,7 @@ class Rem {
         foreach($prefixes as $prefix) {
             $suffixes = self::$_redis->smembers($prefix);
             foreach($suffixes as $suffix) {
-                $keys[] = $prefix . ":" . $suffix;
+                $keys[] = RemKey::fromString($prefix . ":" . $suffix);
             }
         }
         return $keys;
