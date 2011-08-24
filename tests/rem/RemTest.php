@@ -22,7 +22,7 @@ class FakeChild extends FakeParent {
         return $this->name;
     }
 
-    public function _rem_getAge($fake_child) {
+    public function _rem_getAge(FakeChild $fake_child) {
         return $fake_child->age;
     }
 }

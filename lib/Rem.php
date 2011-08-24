@@ -409,7 +409,8 @@ class Rem {
             }
         };
 
-        $args_copy = $args;
+        // deep copy
+        $args_copy = unserialize(serialize($args));
         array_walk_recursive($args_copy, $stringify);
         return serialize($args_copy);
     }

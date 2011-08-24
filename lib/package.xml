@@ -16,8 +16,8 @@
  <date>2011-08-24</date>
  <time>13:18:01</time>
  <version>
-  <release>0.1.7</release>
-  <api>0.1.7</api>
+  <release>0.1.8</release>
+  <api>0.1.8</api>
  </version>
  <stability>
   <release>alpha</release>
@@ -46,8 +46,8 @@
  <changelog>
   <release>
    <version>
-    <release>0.1.7</release>
-    <api>0.1.7</api>
+    <release>0.1.8</release>
+    <api>0.1.8</api>
    </version>
    <stability>
     <release>alpha</release>
