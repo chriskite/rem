@@ -81,14 +81,6 @@ class Rem {
     protected static $_enabled = true;
 
     /**
-     * Expiration time in seconds for new cached values.
-     * By default set to one day.
-     * @access protected
-     * @var integer
-     */
-    protected static $_expiry = 86400;
-
-    /**
      * Redis client used to access Redis.
      * @access protected
      * @var Predis\Client
@@ -101,15 +93,6 @@ class Rem {
      */
     public static function remSetRedis($predis) {
         self::$_redis = $predis;
-    }
-
-    /**
-     * Set the expiration time in seconds to use on new
-     * cached values by default.
-     * @param int $seconds
-     */
-    public static function remSetDefaultExpiry($seconds) {
-        self::$_expiry = $seconds;
     }
 
     /**
@@ -224,12 +207,18 @@ class Rem {
         });
     }
 
+
+    /**
+     * Delete the cached key from Redis
+     * @param string $key
+     * @param Predis\Pipeline $pipe
+     */
     public static function remDeleteKey(RemKey $key, $pipe = null) {
         if(null === $pipe) {
             $pipe = self::$_redis;
         }
-        $pipe->del($key);
         self::remDeleteIndex($key);
+        $pipe->del($key);
     }
 
     /**
@@ -254,12 +243,13 @@ class Rem {
      * @param string $id
      * @param object $binding
      */
-    private static function remRecacheKey(RemKey $key, RemId $id, $binding) {
+    private static function remRecacheKey(RemKey $key, $binding) {
+        $id = $key->rem_id;
         // get the arguments 
         $arg_string = self::$_redis->hget($key, 'args');
         $args = unserialize($arg_string);
         if(false === $args) {
-            self::remInvalidateKey($key);
+            self::remDeleteKey($key);
             throw new Exception("Unable to unserialize arg string '$arg_string'. Invalidating key '$key'.");
         }
 
@@ -267,8 +257,8 @@ class Rem {
             if(is_object($arg)) {
                 $class = new ReflectionClass($arg);
                 if(method_exists($arg, 'remId') && $class->hasMethod('remHydrate')) {
-                    $method = $class->getMethod('remHydrate');
-                    $arg = $method->invokeArgs(null, array($arg->remId()));
+                    $class_name = $class->getName();
+                    $arg = $class_name::remHydrate($arg->remId());
                 }
             }
         }
@@ -285,10 +275,9 @@ class Rem {
             }
         } catch(Exception $e) {
             // since the method call failed, destroy this cached key
-            self::remInvalidateKey($key);
+            self::remDeleteKey($key);
             throw $e;
         }
-
         // cache that method result
         self::remCache($id, $method_name, $args, $result);
     }
@@ -303,16 +292,8 @@ class Rem {
         foreach($suffixes as $suffix) {
             list($method, $arg_hash) = explode(':', $suffix);
             $key = new RemKey($id, $method, $arg_hash);
-            self::remRecacheKey($key, $id, $binding);
+            self::remRecacheKey($key, $binding);
         }
-    }
-
-    /**
-     * Delete the cached key from Redis
-     * @param string $key
-     */
-    private static function remInvalidateKey(RemKey $key) {
-        self::remDeleteKey($key);      
     }
 
     /**
@@ -382,12 +363,12 @@ class Rem {
         $key = self::remCreateKey($id, $method, $args);
         self::$_redis->hset($key, 'args', serialize($args));
         self::$_redis->hset($key, 'val', serialize($value));
-        self::$_redis->expire($key, self::$_expiry);
+        self::remAddIndex($key);
     }
 
     private static function remAddIndex(RemKey $key) {
-        self::$_redis->sadd(RemKey::getIndexKey(), $key->getPrefix());
         self::$_redis->sadd($key->getPrefix(), $key->getSuffix());
+        self::$_redis->sadd(RemKey::getIndexKey(), $key->getPrefix());
     }
 
     private static function remDeleteIndex(RemKey $key) {
@@ -405,7 +386,6 @@ class Rem {
     private static function remCreateKey($id, $method, $args) {
         $hash = substr(sha1(self::remSerializeArgs($args)), 12);
         $key = new RemKey($id, $method, $hash);
-        self::remAddIndex($key);
         return $key;
     }
 
