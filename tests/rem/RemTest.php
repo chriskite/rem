@@ -2,6 +2,31 @@
 require_once REM_PATH . '/Rem.php';
 require_once('Predis.php');
 
+class FakeParent extends Rem {
+    public static function remHydrate($id) {
+        $class = get_called_class();
+        return new $class($id, 0);
+    }
+}
+
+class FakeChild extends FakeParent {
+    public $name;
+    public $age;
+
+    public function __construct($name, $age) {
+        $this->name = $name;
+        $this->age = $age;
+    }
+
+    public function remId() {
+        return $this->name;
+    }
+
+    public function _rem_getAge($fake_child) {
+        return $fake_child->age;
+    }
+}
+
 class FakeObject extends Rem {
     public static function remHydrate($id) {
         $name = $id;
@@ -38,11 +63,11 @@ class Fake extends Rem {
     }
 
     public static function _rem_staticTime() {
-        return time();
+        return microtime();
     }
 
     public function _rem_time() {
-        return time();
+        return microtime();
     }
 
     public function foo() {
@@ -135,11 +160,10 @@ class RemTest extends PHPUnit_Framework_TestCase
 
     public function testRecache() {
         $fake = new Fake();
-        $time = $fake->time(); // call num_calls() to cache the result
-        $start = time();
+        $time = $fake->time(); // call time() to cache the result
+        $start = microtime();
         $this->assertGreaterThanOrEqual($time, $start);
 
-        sleep(1);
         $fake->remRecache();
 
         $new_time = $fake->time();
@@ -148,11 +172,10 @@ class RemTest extends PHPUnit_Framework_TestCase
 
     public function testRecacheAll() {
         $fake = new Fake();
-        $time = $fake->time(); // call num_calls() to cache the result
-        $start = time();
+        $time = $fake->time(); // call time() to cache the result
+        $start = microtime();
         $this->assertGreaterThanOrEqual($time, $start);
 
-        sleep(1);
         Rem::remRecacheAll();
 
         $new_time = $fake->time();
@@ -160,11 +183,10 @@ class RemTest extends PHPUnit_Framework_TestCase
     }
 
     public function testStaticRecache() {
-        $time = Fake::staticTime(); // call num_calls() to cache the result
-        $start = time();
+        $time = Fake::staticTime(); // call time() to cache the result
+        $start = microtime();
         $this->assertGreaterThanOrEqual($time, $start);
 
-        sleep(1);
         Fake::remStaticRecache();
 
         $new_time = Fake::staticTime();
@@ -181,6 +203,15 @@ class RemTest extends PHPUnit_Framework_TestCase
 
         $new_hydrated = $fake->getObjectHydrated($fake_obj);
         $this->assertTrue($new_hydrated);
+    }
+
+    public function testInheritedHydration() {
+        $child = new FakeChild('child', 5);
+        $this->assertEquals(5, $child->getAge($child));
+        $child->age = 10;
+        $this->assertEquals(5, $child->getAge($child));
+        $child->remRecache();
+        $this->assertEquals(0, $child->getAge($child));
     }
 }
 ?>
