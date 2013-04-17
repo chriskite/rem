@@ -1,1 +1,4 @@
 *.swp
+.idea
+vendor
+tests/phpunit.xml
