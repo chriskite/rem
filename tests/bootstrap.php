@@ -1,3 +1,2 @@
 <?php
-define('REM_PATH', realpath(dirname(__FILE__) . '/../lib/'));
-
+require_once __DIR__ . '/../vendor/autoload.php';
