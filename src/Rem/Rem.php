@@ -98,7 +98,7 @@ class Rem
         if ($class->hasMethod('remDependents')) {
             foreach ($this->remDependents() as $dependent) {
                 $dependent_class = new \ReflectionClass($dependent);
-                if (!$dependent_class->isSubclassOf('Rem')) {
+                if (!$dependent_class->isSubclassOf('\Rem\Rem')) {
                     throw new \Exception("Dependent of '$class' does not inherit from Rem");
                 }
                 $dependent->remRecache();
@@ -126,10 +126,11 @@ class Rem
      */
     public static function remDeleteCacheForId(Id $id)
     {
-        $suffixes = self::$_redis->smembers($id->getKey());
-        self::$_redis->pipeline(function ($pipe) use ($suffixes) {
+        $idKey = $id->getKey();
+        $suffixes = self::$_redis->smembers($idKey);
+        self::$_redis->pipeline(function ($pipe) use ($suffixes, $idKey) {
             foreach ($suffixes as $suffix) {
-                $key = $id_key . ":" . $suffix;
+                $key = $idKey . ":" . $suffix;
                 self::remDeleteKey($key, $pipe);
             }
         });
