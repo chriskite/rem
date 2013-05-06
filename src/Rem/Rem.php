@@ -147,7 +147,7 @@ class Rem {
         if(null === $pipe) {
             $pipe = self::$_redis;
         }
-        self::remDeleteIndex($key);
+        self::remDeleteIndex($key, $pipe);
         $pipe->del($key);
     }
 
@@ -301,9 +301,12 @@ class Rem {
         self::$_redis->sadd(Key::getIndexKey(), $key->getPrefix());
     }
 
-    private static function remDeleteIndex(Key $key) {
-        self::$_redis->srem(Key::getIndexKey(), $key->getPrefix());
-        self::$_redis->srem($key->getPrefix(), $key->getSuffix());
+    private static function remDeleteIndex(Key $key, $pipe = null) {
+        if(null === $pipe) {
+            $pipe = self::$_redis;
+        }
+        $pipe->srem(Key::getIndexKey(), $key->getPrefix());
+        $pipe->srem($key->getPrefix(), $key->getSuffix());
     }
 
     /**
