@@ -6,15 +6,12 @@ namespace Rem;
  * same RemId. For example, any singleton class could inherit
  * from RemSingleton to avoid having to specify a remId() method.
  */
-class Singleton extends Rem
-{
-    public function remGetId()
-    {
+class Singleton extends Rem {
+    public function remGetId() {
         return new Id(get_called_class());
     }
 
-    public function remId()
-    {
+    public function remId() {
         return '';
     }
 }
