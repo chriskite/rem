@@ -1,88 +1,108 @@
 <?php
-require_once REM_PATH . '/Rem.php';
-require_once('Predis.php');
+Use Rem\Rem;
 
-class FakeParent extends Rem {
-    public static function remHydrate($id) {
+class FakeParent extends Rem
+{
+    public static function remHydrate($id)
+    {
         $class = get_called_class();
         return new $class($id, 0);
     }
 }
 
-class FakeChild extends FakeParent {
+class FakeChild extends FakeParent
+{
     public $name;
     public $age;
 
-    public function __construct($name, $age) {
+    public function __construct($name, $age)
+    {
         $this->name = $name;
         $this->age = $age;
     }
 
-    public function remId() {
+    public function remId()
+    {
         return $this->name;
     }
 
-    public function _rem_getAge(FakeChild $fake_child) {
+    public function _rem_getAge(FakeChild $fake_child)
+    {
         return $fake_child->age;
     }
 }
 
-class FakeObject extends Rem {
-    public static function remHydrate($id) {
+class FakeObject extends Rem
+{
+    public static function remHydrate($id)
+    {
         $name = $id;
         $obj = new FakeObject($name);
         $obj->hydrated = true;
         return $obj;
     }
 
-    public function __construct($name) {
+    public function __construct($name)
+    {
         $this->name = $name;
         $this->hydrated = false;
     }
 
-    public function remId() {
+    public function remId()
+    {
         return $this->name;
     }
 }
 
-class Fake extends Rem {
-    public static function remHydrate($id) {
+class Fake extends Rem
+{
+    public static function remHydrate($id)
+    {
         return new Fake();
     }
 
-    public static function fooStatic() {
+    public static function fooStatic()
+    {
         return 'fooStatic';
     }
 
-    public static function _rem_barStatic() {
+    public static function _rem_barStatic()
+    {
         return 'barStatic';
     }
 
-    public function remId() {
+    public function remId()
+    {
         return '42';
     }
 
-    public static function _rem_staticTime() {
+    public static function _rem_staticTime()
+    {
         return microtime();
     }
 
-    public function _rem_time() {
+    public function _rem_time()
+    {
         return microtime();
     }
 
-    public function foo() {
+    public function foo()
+    {
         return 'foo';
     }
 
-    public function _rem_bar() {
+    public function _rem_bar()
+    {
         return 'bar';
     }
 
-    public function _rem_getObjectName($obj) {
+    public function _rem_getObjectName($obj)
+    {
         return $obj->name;
     }
 
-    public function _rem_getObjectHydrated($obj) {
+    public function _rem_getObjectHydrated($obj)
+    {
         return $obj->hydrated;
     }
 
@@ -90,29 +110,33 @@ class Fake extends Rem {
 
 class RemTest extends PHPUnit_Framework_TestCase
 {
-    protected function setUp() {
-        $this->redis = new Predis\Client();
+    protected function setUp()
+    {
+        $this->redis = new \Predis\Client();
         Rem::remSetRedis($this->redis);
-        
+
         /* clear existing rem keys from redis */
-        foreach($this->getRemKeys() as $key) {
+        foreach ($this->getRemKeys() as $key) {
             $this->redis->del($key);
         }
     }
 
-    protected function tearDown() {
+    protected function tearDown()
+    {
     }
 
-    protected function getRemKeys() {
+    protected function getRemKeys()
+    {
         return $this->redis->keys('rem:*');
     }
 
-    public function testMethodCaching() {
+    public function testMethodCaching()
+    {
         $fake = new Fake();
 
         /* test that Rem doesn't break normal method calls */
         $this->assertEquals('foo', $fake->foo());
-        
+
         /* test that an uncached method returns the right result */
         $this->assertEquals('bar', $fake->bar());
 
@@ -126,10 +150,11 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('Baz', $fake->bar());
     }
 
-    public function testStaticMethodCaching() {
+    public function testStaticMethodCaching()
+    {
         /* test that Rem doesn't break normal method calls */
         $this->assertEquals('fooStatic', Fake::fooStatic());
-        
+
         /* test that an uncached method returns the right result */
         $this->assertEquals('barStatic', Fake::barStatic());
 
@@ -143,7 +168,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('BazStatic', Fake::barStatic());
     }
 
-    public function testMethodCachingWithObjectArguments() {
+    public function testMethodCachingWithObjectArguments()
+    {
         $fake = new Fake();
         $fake_obj = new FakeObject('foo');
 
@@ -158,7 +184,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('bar', $fake->getObjectName($another_fake));
     }
 
-    public function testRecache() {
+    public function testRecache()
+    {
         $fake = new Fake();
         $time = $fake->time(); // call time() to cache the result
         $start = microtime();
@@ -170,7 +197,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertGreaterThan($start, $new_time);
     }
 
-    public function testRecacheAll() {
+    public function testRecacheAll()
+    {
         $fake = new Fake();
         $time = $fake->time(); // call time() to cache the result
         $start = microtime();
@@ -182,7 +210,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertGreaterThan($start, $new_time);
     }
 
-    public function testStaticRecache() {
+    public function testStaticRecache()
+    {
         $time = Fake::staticTime(); // call time() to cache the result
         $start = microtime();
         $this->assertGreaterThanOrEqual($time, $start);
@@ -193,7 +222,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertGreaterThan($start, $new_time);
     }
 
-    public function testRecacheWithHydrate() {
+    public function testRecacheWithHydrate()
+    {
         $fake = new Fake();
         $fake_obj = new FakeObject('Herp');
         $hydrated = $fake->getObjectHydrated($fake_obj); // call to cache result
@@ -205,7 +235,8 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertTrue($new_hydrated);
     }
 
-    public function testInheritedHydration() {
+    public function testInheritedHydration()
+    {
         $child = new FakeChild('child', 5);
         $this->assertEquals(5, $child->getAge($child));
         $child->age = 10;
@@ -214,4 +245,3 @@ class RemTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(0, $child->getAge($child));
     }
 }
-?>
