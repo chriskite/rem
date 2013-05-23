@@ -130,11 +130,9 @@ class Rem {
      */
     public static function remClear() {
         $keys = self::remAllKeys();
-        self::$_redis->pipeline(function ($pipe) use ($keys) {
-            foreach($keys as $key) {
-                Rem::remDeleteKey($key, $pipe);
-            }
-        });
+        foreach($keys as $key) {
+            Rem::remDeleteKey($key);
+        }
     }
 
 
@@ -143,12 +141,11 @@ class Rem {
      * @param string $key
      * @param Predis\Pipeline $pipe
      */
-    public static function remDeleteKey(Key $key, $pipe = null) {
-        if(null === $pipe) {
-            $pipe = self::$_redis;
-        }
-        self::remDeleteIndex($key, $pipe);
-        $pipe->del($key);
+    public static function remDeleteKey(Key $key) {
+        $multi = self::$_redis->multiExec();
+        self::remDeleteIndex($key, $multi);
+        $multi->del($key);
+        $multi->execute();
     }
 
     /**
@@ -291,22 +288,21 @@ class Rem {
      */
     private static function remCache(Id $id, $method, $args, $value) {
         $key = self::remCreateKey($id, $method, $args);
-        self::$_redis->hset($key, 'args', serialize($args));
-        self::$_redis->hset($key, 'val', serialize($value));
-        self::remAddIndex($key);
+        $multi = self::$_redis->multiExec();
+        $multi->hset($key, 'args', serialize($args));
+        $multi->hset($key, 'val', serialize($value));
+        self::remAddIndex($key, $multi);
+        $multi->execute();
     }
 
-    private static function remAddIndex(Key $key) {
-        self::$_redis->sadd($key->getPrefix(), $key->getSuffix());
-        self::$_redis->sadd(Key::getIndexKey(), $key->getPrefix());
+    private static function remAddIndex(Key $key, $multi) {
+        $multi->sadd($key->getPrefix(), $key->getSuffix());
+        $multi->sadd(Key::getIndexKey(), $key->getPrefix());
     }
 
-    private static function remDeleteIndex(Key $key, $pipe = null) {
-        if(null === $pipe) {
-            $pipe = self::$_redis;
-        }
-        $pipe->srem(Key::getIndexKey(), $key->getPrefix());
-        $pipe->srem($key->getPrefix(), $key->getSuffix());
+    private static function remDeleteIndex(Key $key, $multi) {
+        $multi->srem(Key::getIndexKey(), $key->getPrefix());
+        $multi->srem($key->getPrefix(), $key->getSuffix());
     }
 
     /**
