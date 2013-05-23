@@ -130,9 +130,11 @@ class Rem {
      */
     public static function remClear() {
         $keys = self::remAllKeys();
-        foreach($keys as $key) {
-            Rem::remDeleteKey($key);
-        }
+        self::$_redis->pipeline(function ($pipe) use ($keys) {
+            foreach($keys as $key) {
+                Rem::remDeleteKey($key, $pipe);
+            }
+        });
     }
 
 
@@ -141,11 +143,12 @@ class Rem {
      * @param string $key
      * @param Predis\Pipeline $pipe
      */
-    public static function remDeleteKey(Key $key) {
-        $multi = self::$_redis->multiExec();
-        self::remDeleteIndex($key, $multi);
-        $multi->del($key);
-        $multi->execute();
+    public static function remDeleteKey(Key $key, $pipe = null) {
+        if(null === $pipe) {
+            $pipe = self::$_redis;
+        }
+        self::remDeleteIndex($key, $pipe);
+        $pipe->del($key);
     }
 
     /**
@@ -206,7 +209,7 @@ class Rem {
             throw $e;
         }
         // cache that method result
-        self::remCache($id, $method_name, $args, $result);
+        self::remCache($key, $args, $result);
     }
 
     private static function remRecacheId(Id $id, $binding) {
@@ -245,8 +248,17 @@ class Rem {
             throw new \Exception("remId() must be non-null and non-empty.");
         }
 
+        $key = self::remCreateKey($id, $method, $args);
+        $value = null;
+
         if(self::$_enabled) {
-            $value = self::remGetCached($id, $method, $args);
+            if(self::remKeyInIndex($key)) {
+                $value = self::remGetCached($key);
+            } else {
+                // index is out of sync, delete this orphaned key
+                self::remDeleteKey($key);
+
+            }
         }
 
         if(null === $value) {
@@ -256,7 +268,7 @@ class Rem {
             // cache the value
 
             if(self::$_enabled) {
-                self::remCache($id, $method, $args, $value);
+                self::remCache($key, $args, $value);
             }
         }
 
@@ -270,8 +282,7 @@ class Rem {
      * @param array $args
      * @return mixed unserialized value
      */
-    private static function remGetCached($id, $method, $args) {
-        $key = self::remCreateKey($id, $method, $args);
+    private static function remGetCached($key) {
         $value = self::$_redis->hget($key, 'val');
         if(null !== $value && "" !== $value) {
             $value = unserialize($value);
@@ -286,23 +297,25 @@ class Rem {
      * @param array $args
      * @param mixed $value
      */
-    private static function remCache(Id $id, $method, $args, $value) {
-        $key = self::remCreateKey($id, $method, $args);
-        $multi = self::$_redis->multiExec();
-        $multi->hset($key, 'args', serialize($args));
-        $multi->hset($key, 'val', serialize($value));
-        self::remAddIndex($key, $multi);
-        $multi->execute();
+    private static function remCache(Key $key, $args, $value) {
+        self::$_redis->hset($key, 'args', serialize($args));
+        self::$_redis->hset($key, 'val', serialize($value));
+        self::remAddIndex($key);
     }
 
-    private static function remAddIndex(Key $key, $multi) {
-        $multi->sadd($key->getPrefix(), $key->getSuffix());
-        $multi->sadd(Key::getIndexKey(), $key->getPrefix());
+    private static function remAddIndex(Key $key) {
+        self::$_redis->sadd($key->getPrefix(), $key->getSuffix());
+        self::$_redis->sadd(Key::getIndexKey(), $key->getPrefix());
     }
 
-    private static function remDeleteIndex(Key $key, $multi) {
-        $multi->srem(Key::getIndexKey(), $key->getPrefix());
-        $multi->srem($key->getPrefix(), $key->getSuffix());
+    private static function remDeleteIndex(Key $key, $pipe) {
+        $pipe->srem(Key::getIndexKey(), $key->getPrefix());
+        $pipe->srem($key->getPrefix(), $key->getSuffix());
+    }
+
+    private static function remKeyInIndex(Key $key) {
+        return self::$_redis->sismember(Key::getIndexKey(), $key->getPrefix())
+               && self::$_redis->sismember($key->getPrefix(), $key->getSuffix());
     }
 
     /**
