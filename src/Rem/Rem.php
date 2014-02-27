@@ -17,6 +17,16 @@ class Rem {
     protected static $_redis;
 
     /**
+     * @var \Psr\Logger
+     */
+    protected static $logger;
+
+    public static function remSetLogger(Psr\Logger $logger)
+    {
+        self::$logger = $logger;
+    }
+
+    /**
      * Set the Redis client instance to use.
      * @param \Predis\Client $predis
      */
@@ -43,6 +53,7 @@ class Rem {
      */
     public static function remStaticRecache() {
         $id = new Id(get_called_class());
+        self::$logger && self::$logger->info("Static recache $id");
         self::remRecacheId($id, $id->class);
     }
 
@@ -51,6 +62,7 @@ class Rem {
      * overwrite the existing values in the cache.
      */
     public function remRecache() {
+        self::$logger && self::$logger->info("Recaching " . get_class($this) . " " . $this->remGetId());
         self::remRecacheId($this->remGetId(), $this);
         self::remStaticRecache();
     }
@@ -90,6 +102,7 @@ class Rem {
         if($class->hasMethod('remDependents')) {
             foreach($this->remDependents() as $dependent) {
                 $dependent_class = new \ReflectionClass($dependent);
+                self::$logger && self::$logger->info('recaching ' . $class->getName() . ' dependent ' . $dependent_class);
                 if(!$dependent_class->isSubclassOf('\Rem\Rem')) {
                     throw new \Exception("Dependent of '$class' does not inherit from Rem");
                 }
